@@ -3,12 +3,13 @@ services:
     image: itzg/minecraft-server
     environment:
       EULA: "true"
-      TYPE: "CUSTOM"
-      CUSTOM_SERVER: "/data/fabric-server-mc.1.20.1-loader.0.18.4-launcher.1.1.1.jar"
+      TYPE: "FABRIC"
+      VERSION: "1.20.1"
+      FABRIC_LOADER_VERSION: "0.18.4"
+      FABRIC_LAUNCHER_VERSION: "1.1.1"
     ports:
       - "25565:25565"
     volumes:
-      - ./fabric-server-mc.1.20.1-loader.0.18.4-launcher.1.1.1.jar:/data/fabric-server-mc.1.20.1-loader.0.18.4-launcher.1.1.1.jar:ro
       - ./mods:/data/mods
       - data:/data
     stdin_open: true
