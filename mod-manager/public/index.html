@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MC Mod Manager</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #1a1a2e; color: #e0e0e0; min-height: 100vh; padding: 2rem; }
+    h1 { text-align: center; margin-bottom: 1.5rem; color: #7bed9f; }
+    .container { max-width: 700px; margin: 0 auto; }
+
+    .upload-area {
+      border: 2px dashed #444; border-radius: 12px; padding: 2rem;
+      text-align: center; margin-bottom: 2rem; transition: border-color 0.2s;
+    }
+    .upload-area:hover { border-color: #7bed9f; }
+    .upload-area input[type="file"] { display: none; }
+    .upload-area label {
+      cursor: pointer; padding: 0.6rem 1.4rem; background: #7bed9f; color: #1a1a2e;
+      border-radius: 8px; font-weight: 600; display: inline-block;
+    }
+    .upload-area label:hover { background: #55efc4; }
+    .upload-area p { margin-top: 0.5rem; color: #888; font-size: 0.9rem; }
+
+    .mod-list { list-style: none; }
+    .mod-item {
+      display: flex; align-items: center; justify-content: space-between;
+      background: #16213e; padding: 0.8rem 1rem; border-radius: 8px;
+      margin-bottom: 0.5rem; transition: opacity 0.2s;
+    }
+    .mod-item.disabled { opacity: 0.5; }
+    .mod-name { flex: 1; font-weight: 500; word-break: break-all; }
+    .mod-size { color: #888; font-size: 0.85rem; margin: 0 1rem; white-space: nowrap; }
+    .btn {
+      border: none; cursor: pointer; padding: 0.4rem 0.8rem; border-radius: 6px;
+      font-size: 0.85rem; font-weight: 600; margin-left: 0.4rem;
+    }
+    .btn-toggle { background: #f39c12; color: #1a1a2e; }
+    .btn-toggle.on { background: #2ecc71; }
+    .btn-delete { background: #e74c3c; color: #fff; }
+    .btn:hover { filter: brightness(1.15); }
+
+    .empty { text-align: center; color: #666; padding: 2rem; }
+    .status { text-align: center; color: #7bed9f; margin-bottom: 1rem; min-height: 1.4rem; }
+
+    .server-panel {
+      background: #16213e; border-radius: 12px; padding: 1.2rem 1.5rem;
+      margin-bottom: 2rem; display: flex; align-items: center; gap: 1.2rem; flex-wrap: wrap;
+    }
+    .server-indicator {
+      width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0;
+      background: #e74c3c; box-shadow: 0 0 8px #e74c3c88;
+    }
+    .server-indicator.online {
+      background: #2ecc71; box-shadow: 0 0 8px #2ecc7188;
+    }
+    .server-info { flex: 1; min-width: 200px; }
+    .server-info .label { font-size: 0.8rem; color: #888; text-transform: uppercase; letter-spacing: 0.05em; }
+    .server-info .value { font-size: 1rem; font-weight: 600; margin-top: 0.15rem; }
+    .server-stats {
+      display: flex; gap: 1.5rem; flex-wrap: wrap;
+    }
+    .stat { text-align: center; }
+    .stat .label { font-size: 0.75rem; color: #888; text-transform: uppercase; letter-spacing: 0.05em; }
+    .stat .value { font-size: 1.1rem; font-weight: 700; margin-top: 0.15rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>&#9878; MC Mod Manager</h1>
+    <div class="status" id="status"></div>
+
+    <div class="server-panel" id="server-panel">
+      <div class="server-indicator" id="server-dot"></div>
+      <div class="server-info">
+        <div class="label">Server Status</div>
+        <div class="value" id="server-status">Checking...</div>
+      </div>
+      <div class="server-stats">
+        <div class="stat">
+          <div class="label">Players</div>
+          <div class="value" id="server-players">-</div>
+        </div>
+        <div class="stat">
+          <div class="label">Version</div>
+          <div class="value" id="server-version">-</div>
+        </div>
+        <div class="stat">
+          <div class="label">Latency</div>
+          <div class="value" id="server-latency">-</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="upload-area">
+      <label for="file-input">Choose .jar file</label>
+      <input type="file" id="file-input" accept=".jar" />
+      <p>Upload a mod JAR to the server</p>
+    </div>
+
+    <ul class="mod-list" id="mod-list"></ul>
+  </div>
+
+  <script>
+    const statusEl = document.getElementById("status");
+    const listEl = document.getElementById("mod-list");
+    const fileInput = document.getElementById("file-input");
+
+    const serverDot = document.getElementById("server-dot");
+    const serverStatusEl = document.getElementById("server-status");
+    const serverPlayersEl = document.getElementById("server-players");
+    const serverVersionEl = document.getElementById("server-version");
+    const serverLatencyEl = document.getElementById("server-latency");
+
+    async function loadServerStatus() {
+      try {
+        const res = await fetch("/api/status");
+        const data = await res.json();
+        if (data.online) {
+          serverDot.classList.add("online");
+          serverStatusEl.textContent = data.motd || "Online";
+          serverPlayersEl.textContent = `${data.players.online} / ${data.players.max}`;
+          serverVersionEl.textContent = data.version;
+          serverLatencyEl.textContent = `${data.latency}ms`;
+        } else {
+          serverDot.classList.remove("online");
+          serverStatusEl.textContent = "Offline";
+          serverPlayersEl.textContent = "-";
+          serverVersionEl.textContent = "-";
+          serverLatencyEl.textContent = "-";
+        }
+      } catch {
+        serverDot.classList.remove("online");
+        serverStatusEl.textContent = "Unreachable";
+      }
+    }
+
+    // Poll server status every 10 seconds
+    loadServerStatus();
+    setInterval(loadServerStatus, 10000);
+
+    function showStatus(msg) {
+      statusEl.textContent = msg;
+      setTimeout(() => (statusEl.textContent = ""), 3000);
+    }
+
+    function formatSize(bytes) {
+      if (bytes < 1024) return bytes + " B";
+      if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB";
+      return (bytes / 1048576).toFixed(1) + " MB";
+    }
+
+    async function loadMods() {
+      const res = await fetch("/api/mods");
+      const mods = await res.json();
+
+      if (mods.length === 0) {
+        listEl.innerHTML = '<li class="empty">No mods installed yet.</li>';
+        return;
+      }
+
+      listEl.innerHTML = mods
+        .map(
+          (m) => `
+        <li class="mod-item ${m.enabled ? "" : "disabled"}">
+          <span class="mod-name">${m.name}</span>
+          <span class="mod-size">${formatSize(m.size)}</span>
+          <button class="btn btn-toggle ${m.enabled ? "on" : ""}" onclick="toggleMod('${m.name}')">
+            ${m.enabled ? "Enabled" : "Disabled"}
+          </button>
+          <button class="btn btn-delete" onclick="deleteMod('${m.name}')">Delete</button>
+        </li>`
+        )
+        .join("");
+    }
+
+    fileInput.addEventListener("change", async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+      const form = new FormData();
+      form.append("mod", file);
+      showStatus(`Uploading ${file.name}...`);
+      const res = await fetch("/api/mods", { method: "POST", body: form });
+      const data = await res.json();
+      showStatus(data.message || data.error);
+      fileInput.value = "";
+      loadMods();
+    });
+
+    async function deleteMod(name) {
+      if (!confirm(`Delete ${name}?`)) return;
+      const res = await fetch(`/api/mods/${encodeURIComponent(name)}`, { method: "DELETE" });
+      const data = await res.json();
+      showStatus(data.message);
+      loadMods();
+    }
+
+    async function toggleMod(name) {
+      const res = await fetch(`/api/mods/${encodeURIComponent(name)}/toggle`, { method: "PATCH" });
+      const data = await res.json();
+      showStatus(data.message);
+      loadMods();
+    }
+
+    loadMods();
+  </script>
+</body>
+</html>
