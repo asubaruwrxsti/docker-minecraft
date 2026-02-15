@@ -329,21 +329,51 @@
       const items = await res.json();
       const el = $("file-list");
       if (items.length === 0) { el.innerHTML = '<li class="empty">Empty directory.</li>'; return; }
-      el.innerHTML = items.map((f) => {
-        const icon = f.isDirectory ? "&#128193;" : "&#128196;";
+
+      el.innerHTML = "";
+      // Back button if not at root
+      if (currentPath) {
+        const backLi = document.createElement("li");
+        backLi.className = "list-item file-item dir";
+        backLi.innerHTML = `<span class="file-icon">&#11013;</span><span class="item-name">..</span><span class="item-size"></span>`;
+        backLi.addEventListener("click", () => {
+          const parts = currentPath.split("/").filter(Boolean);
+          parts.pop();
+          navigateTo(parts.length ? "/" + parts.join("/") : "");
+        });
+        el.appendChild(backLi);
+      }
+
+      items.forEach((f) => {
+        const li = document.createElement("li");
         const ep = currentPath + "/" + f.name;
-        const mainClick = f.isDirectory
-          ? `onclick="navigateTo('${esc(ep)}')" `
-          : `onclick="openFile('${esc(ep)}')" `;
-        return `
-        <li class="list-item file-item ${f.isDirectory ? "dir" : ""}" ${mainClick}>
-          <span class="file-icon">${icon}</span>
+        li.className = "list-item file-item" + (f.isDirectory ? " dir" : "");
+        li.innerHTML = `
+          <span class="file-icon">${f.isDirectory ? "&#128193;" : "&#128196;"}</span>
           <span class="item-name">${esc(f.name)}</span>
-          <span class="item-size">${f.isDirectory ? "" : formatSize(f.size)}</span>
-          <button class="btn btn-rename" onclick="event.stopPropagation(); renameEntry('${esc(ep)}', '${esc(f.name)}')">Rename</button>
-          <button class="btn btn-delete" onclick="event.stopPropagation(); deleteFile('${esc(ep)}', '${esc(f.name)}')">Delete</button>
-        </li>`;
-      }).join("");
+          <span class="item-size">${f.isDirectory ? "" : formatSize(f.size)}</span>`;
+
+        const renameBtn = document.createElement("button");
+        renameBtn.className = "btn btn-rename";
+        renameBtn.textContent = "Rename";
+        renameBtn.addEventListener("click", (e) => { e.stopPropagation(); renameEntry(ep, f.name); });
+
+        const delBtn = document.createElement("button");
+        delBtn.className = "btn btn-delete";
+        delBtn.textContent = "Delete";
+        delBtn.addEventListener("click", (e) => { e.stopPropagation(); deleteFile(ep, f.name); });
+
+        li.appendChild(renameBtn);
+        li.appendChild(delBtn);
+
+        if (f.isDirectory) {
+          li.addEventListener("click", () => navigateTo(ep));
+        } else {
+          li.addEventListener("click", () => openFile(ep));
+        }
+
+        el.appendChild(li);
+      });
     }
 
     function navigateTo(p) { currentPath = p; loadFiles(); }
