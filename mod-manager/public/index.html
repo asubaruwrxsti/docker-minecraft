@@ -3,21 +3,19 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MC Mod Manager</title>
+  <title>MC Server Manager</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: system-ui, sans-serif; background: #1a1a2e; color: #e0e0e0; min-height: 100vh; padding: 1.5rem; }
     h1 { text-align: center; margin-bottom: 1rem; color: #7bed9f; font-size: 1.6rem; }
     .container { max-width: 900px; margin: 0 auto; }
 
-    /* Tabs */
     .tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
     .tab {
       padding: 0.5rem 1.2rem; border-radius: 8px 8px 0 0; cursor: pointer;
       background: #16213e; color: #888; font-weight: 600; border: none; font-size: 0.95rem;
     }
     .tab.active { background: #0f3460; color: #7bed9f; }
-
     .panel { display: none; }
     .panel.active { display: block; }
 
@@ -32,11 +30,10 @@
     }
     .server-indicator.online { background: #2ecc71; box-shadow: 0 0 8px #2ecc7188; }
     .server-info { flex: 1; min-width: 180px; }
-    .server-info .label { font-size: 0.8rem; color: #888; text-transform: uppercase; letter-spacing: 0.05em; }
+    .server-info .label, .stat .label { font-size: 0.78rem; color: #888; text-transform: uppercase; letter-spacing: 0.05em; }
     .server-info .value { font-size: 1rem; font-weight: 600; margin-top: 0.15rem; }
     .server-stats { display: flex; gap: 1.5rem; flex-wrap: wrap; }
     .stat { text-align: center; }
-    .stat .label { font-size: 0.75rem; color: #888; text-transform: uppercase; letter-spacing: 0.05em; }
     .stat .value { font-size: 1.1rem; font-weight: 700; margin-top: 0.15rem; }
 
     .btn-restart {
@@ -47,9 +44,9 @@
     .btn-restart:hover { background: #e67e22; }
     .btn-restart:disabled { opacity: 0.5; cursor: not-allowed; }
 
-    /* Upload / Drop zone */
+    /* Drop zone */
     .drop-zone {
-      border: 2px dashed #444; border-radius: 12px; padding: 2rem;
+      border: 2px dashed #444; border-radius: 12px; padding: 1.8rem;
       text-align: center; margin-bottom: 1.5rem; transition: all 0.2s;
     }
     .drop-zone.dragover { border-color: #7bed9f; background: #7bed9f11; }
@@ -64,20 +61,23 @@
     /* Lists */
     .list { list-style: none; }
     .list-item {
-      display: flex; align-items: center; justify-content: space-between;
-      background: #16213e; padding: 0.7rem 1rem; border-radius: 8px;
-      margin-bottom: 0.4rem; transition: opacity 0.2s; gap: 0.5rem;
+      display: flex; align-items: center;
+      background: #16213e; padding: 0.65rem 1rem; border-radius: 8px;
+      margin-bottom: 0.35rem; gap: 0.5rem;
     }
     .list-item.disabled { opacity: 0.5; }
     .item-name { flex: 1; font-weight: 500; word-break: break-all; font-size: 0.9rem; }
     .item-size { color: #888; font-size: 0.82rem; white-space: nowrap; }
     .btn {
-      border: none; cursor: pointer; padding: 0.35rem 0.7rem; border-radius: 6px;
-      font-size: 0.8rem; font-weight: 600;
+      border: none; cursor: pointer; padding: 0.3rem 0.65rem; border-radius: 6px;
+      font-size: 0.78rem; font-weight: 600;
     }
     .btn-toggle { background: #f39c12; color: #1a1a2e; }
     .btn-toggle.on { background: #2ecc71; }
     .btn-delete { background: #e74c3c; color: #fff; }
+    .btn-edit { background: #3498db; color: #fff; }
+    .btn-rename { background: #9b59b6; color: #fff; }
+    .btn-action { background: #7bed9f; color: #1a1a2e; }
     .btn:hover { filter: brightness(1.15); }
 
     .empty { text-align: center; color: #666; padding: 2rem; }
@@ -89,42 +89,60 @@
     }
     .toast.show { opacity: 1; }
 
-    /* File Manager */
+    /* Breadcrumb */
     .breadcrumb {
-      display: flex; gap: 0.3rem; align-items: center; margin-bottom: 1rem;
+      display: flex; gap: 0.3rem; align-items: center; margin-bottom: 0.8rem;
       font-size: 0.9rem; flex-wrap: wrap;
     }
     .breadcrumb span { color: #888; }
     .breadcrumb a { color: #7bed9f; cursor: pointer; text-decoration: none; }
     .breadcrumb a:hover { text-decoration: underline; }
 
+    /* Toolbar */
+    .fm-toolbar {
+      display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap;
+    }
+
     .file-item { cursor: default; }
     .file-item.dir { cursor: pointer; }
     .file-item.dir:hover { background: #1a2d50; }
-    .file-icon { margin-right: 0.5rem; font-size: 1rem; flex-shrink: 0; }
+    .file-icon { margin-right: 0.4rem; font-size: 1rem; flex-shrink: 0; }
 
-    /* File Preview Modal */
+    /* Modal */
     .modal-overlay {
       display: none; position: fixed; inset: 0; background: #000a; z-index: 50;
       justify-content: center; align-items: center;
     }
     .modal-overlay.show { display: flex; }
     .modal {
-      background: #16213e; border-radius: 12px; padding: 1.5rem; width: 90%; max-width: 700px;
-      max-height: 80vh; display: flex; flex-direction: column;
+      background: #16213e; border-radius: 12px; padding: 1.5rem; width: 92%; max-width: 750px;
+      max-height: 85vh; display: flex; flex-direction: column;
     }
     .modal-header {
-      display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; gap: 0.5rem;
     }
-    .modal-header h3 { color: #7bed9f; font-size: 1rem; word-break: break-all; }
+    .modal-header h3 { color: #7bed9f; font-size: 1rem; word-break: break-all; flex: 1; }
     .modal-close {
       background: #e74c3c; color: #fff; border: none; cursor: pointer;
-      padding: 0.3rem 0.7rem; border-radius: 6px; font-weight: 600;
+      padding: 0.3rem 0.7rem; border-radius: 6px; font-weight: 600; flex-shrink: 0;
+    }
+    .modal-save {
+      background: #2ecc71; color: #1a1a2e; border: none; cursor: pointer;
+      padding: 0.3rem 0.9rem; border-radius: 6px; font-weight: 700; flex-shrink: 0;
     }
     .modal-body {
-      overflow: auto; flex: 1; background: #0d1b2a; padding: 1rem;
-      border-radius: 8px; font-family: monospace; font-size: 0.85rem;
-      white-space: pre-wrap; word-break: break-all; line-height: 1.5;
+      overflow: auto; flex: 1; display: flex; flex-direction: column;
+    }
+    .modal-body textarea {
+      flex: 1; min-height: 300px; background: #0d1b2a; color: #e0e0e0; border: 1px solid #333;
+      padding: 1rem; border-radius: 8px; font-family: monospace; font-size: 0.85rem;
+      line-height: 1.5; resize: vertical; outline: none;
+    }
+    .modal-body textarea:focus { border-color: #7bed9f; }
+    .modal-body pre {
+      flex: 1; background: #0d1b2a; padding: 1rem; border-radius: 8px;
+      font-family: monospace; font-size: 0.85rem; white-space: pre-wrap;
+      word-break: break-all; line-height: 1.5; overflow: auto;
     }
   </style>
 </head>
@@ -132,7 +150,6 @@
   <div class="container">
     <h1>&#9878; MC Server Manager</h1>
 
-    <!-- Server Status -->
     <div class="server-panel">
       <div class="server-indicator" id="server-dot"></div>
       <div class="server-info">
@@ -147,13 +164,12 @@
       <button class="btn-restart" id="btn-restart" onclick="restartServer()">Restart Server</button>
     </div>
 
-    <!-- Tabs -->
     <div class="tabs">
       <button class="tab active" data-tab="mods">Mods</button>
       <button class="tab" data-tab="files">File Manager</button>
     </div>
 
-    <!-- Mods Panel -->
+    <!-- Mods -->
     <div class="panel active" id="panel-mods">
       <div class="drop-zone" id="mod-drop">
         <label for="mod-input">Choose .jar files</label>
@@ -163,7 +179,7 @@
       <ul class="list" id="mod-list"></ul>
     </div>
 
-    <!-- File Manager Panel -->
+    <!-- File Manager -->
     <div class="panel" id="panel-files">
       <div class="drop-zone" id="file-drop">
         <label for="file-input">Upload files</label>
@@ -171,15 +187,20 @@
         <p>or drag &amp; drop files into current directory</p>
       </div>
       <div class="breadcrumb" id="breadcrumb"></div>
+      <div class="fm-toolbar">
+        <button class="btn btn-action" onclick="createNewFile()">+ New File</button>
+        <button class="btn btn-action" onclick="createNewFolder()">+ New Folder</button>
+      </div>
       <ul class="list" id="file-list"></ul>
     </div>
   </div>
 
-  <!-- File Preview Modal -->
+  <!-- Editor Modal -->
   <div class="modal-overlay" id="modal">
     <div class="modal">
       <div class="modal-header">
         <h3 id="modal-title">file.txt</h3>
+        <button class="modal-save" id="modal-save" onclick="saveFile()" style="display:none">Save</button>
         <button class="modal-close" onclick="closeModal()">Close</button>
       </div>
       <div class="modal-body" id="modal-body"></div>
@@ -189,11 +210,12 @@
   <div class="toast" id="toast"></div>
 
   <script>
-    // ---- Helpers ----
     const $ = (s) => document.getElementById(s);
+    let toastTimer;
     function toast(msg) {
       const t = $("toast"); t.textContent = msg; t.classList.add("show");
-      setTimeout(() => t.classList.remove("show"), 3000);
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => t.classList.remove("show"), 3000);
     }
     function formatSize(b) {
       if (b < 1024) return b + " B";
@@ -201,7 +223,7 @@
       return (b / 1048576).toFixed(1) + " MB";
     }
     function esc(s) {
-      return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+      return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
     }
 
     // ---- Tabs ----
@@ -249,7 +271,7 @@
         const d = await res.json();
         toast(d.message || d.error);
       } catch (e) { toast("Error: " + e.message); }
-      setTimeout(() => { btn.disabled = false; btn.textContent = "Restart Server"; }, 5000);
+      setTimeout(() => { btn.disabled = false; btn.textContent = "Restart Server"; loadServerStatus(); }, 8000);
     }
 
     // ---- Mods ----
@@ -262,52 +284,43 @@
         <li class="list-item ${m.enabled ? "" : "disabled"}">
           <span class="item-name">${esc(m.name)}</span>
           <span class="item-size">${formatSize(m.size)}</span>
-          <button class="btn btn-toggle ${m.enabled ? "on" : ""}" onclick="toggleMod('${esc(m.name)}')">
-            ${m.enabled ? "Enabled" : "Disabled"}
-          </button>
+          <button class="btn btn-toggle ${m.enabled ? "on" : ""}" onclick="toggleMod('${esc(m.name)}')">${m.enabled ? "Enabled" : "Disabled"}</button>
           <button class="btn btn-delete" onclick="deleteMod('${esc(m.name)}')">Delete</button>
         </li>`).join("");
     }
-
     async function uploadMods(files) {
       const form = new FormData();
       for (const f of files) form.append("mod", f);
       toast(`Uploading ${files.length} file(s)...`);
       const res = await fetch("/api/mods", { method: "POST", body: form });
-      const d = await res.json();
-      toast(d.message || d.error);
-      loadMods();
+      toast((await res.json()).message); loadMods();
     }
-
     async function deleteMod(name) {
       if (!confirm(`Delete ${name}?`)) return;
-      const res = await fetch(`/api/mods/${encodeURIComponent(name)}`, { method: "DELETE" });
-      toast((await res.json()).message); loadMods();
+      await fetch(`/api/mods/${encodeURIComponent(name)}`, { method: "DELETE" });
+      toast(`Deleted ${name}`); loadMods();
     }
     async function toggleMod(name) {
       const res = await fetch(`/api/mods/${encodeURIComponent(name)}/toggle`, { method: "PATCH" });
       toast((await res.json()).message); loadMods();
     }
-
-    // Mod input + drag & drop
     $("mod-input").addEventListener("change", (e) => { if (e.target.files.length) uploadMods(e.target.files); e.target.value = ""; });
-    setupDropZone($("mod-drop"), (files) => uploadMods(files));
+    setupDropZone($("mod-drop"), uploadMods);
     loadMods();
 
     // ---- File Manager ----
     let currentPath = "";
+    let editingPath = "";
 
     function renderBreadcrumb() {
-      const bc = $("breadcrumb");
       const parts = currentPath.split("/").filter(Boolean);
       let html = `<a onclick="navigateTo('')">/data</a>`;
-      let cumulative = "";
+      let cum = "";
       for (const p of parts) {
-        cumulative += "/" + p;
-        const cp = cumulative;
-        html += `<span>/</span><a onclick="navigateTo('${esc(cp)}')">${esc(p)}</a>`;
+        cum += "/" + p;
+        html += `<span>/</span><a onclick="navigateTo('${esc(cum)}')">${esc(p)}</a>`;
       }
-      bc.innerHTML = html;
+      $("breadcrumb").innerHTML = html;
     }
 
     async function loadFiles() {
@@ -318,41 +331,121 @@
       if (items.length === 0) { el.innerHTML = '<li class="empty">Empty directory.</li>'; return; }
       el.innerHTML = items.map((f) => {
         const icon = f.isDirectory ? "&#128193;" : "&#128196;";
-        const entryPath = currentPath + "/" + f.name;
-        const clickAction = f.isDirectory
-          ? `onclick="navigateTo('${esc(entryPath)}')" `
-          : `onclick="previewFile('${esc(entryPath)}')" `;
+        const ep = currentPath + "/" + f.name;
+        const mainClick = f.isDirectory
+          ? `onclick="navigateTo('${esc(ep)}')" `
+          : `onclick="openFile('${esc(ep)}')" `;
         return `
-        <li class="list-item file-item ${f.isDirectory ? "dir" : ""}" ${clickAction}>
+        <li class="list-item file-item ${f.isDirectory ? "dir" : ""}" ${mainClick}>
           <span class="file-icon">${icon}</span>
           <span class="item-name">${esc(f.name)}</span>
           <span class="item-size">${f.isDirectory ? "" : formatSize(f.size)}</span>
-          <button class="btn btn-delete" onclick="event.stopPropagation(); deleteFile('${esc(entryPath)}', '${esc(f.name)}')">Delete</button>
+          <button class="btn btn-rename" onclick="event.stopPropagation(); renameEntry('${esc(ep)}', '${esc(f.name)}')">Rename</button>
+          <button class="btn btn-delete" onclick="event.stopPropagation(); deleteFile('${esc(ep)}', '${esc(f.name)}')">Delete</button>
         </li>`;
       }).join("");
     }
 
     function navigateTo(p) { currentPath = p; loadFiles(); }
 
-    async function previewFile(p) {
+    // Open file for editing
+    async function openFile(p) {
       try {
         const res = await fetch(`/api/files/read?path=${encodeURIComponent(p)}`);
         const d = await res.json();
         if (d.error) { toast(d.error); return; }
+
+        editingPath = p;
         $("modal-title").textContent = d.name;
-        $("modal-body").textContent = d.content;
+        $("modal-save").style.display = "inline-block";
+        $("modal-body").innerHTML = `<textarea id="editor">${esc(d.content)}</textarea>`;
         $("modal").classList.add("show");
-      } catch { toast("Cannot preview this file"); }
+      } catch { toast("Cannot open this file"); }
     }
-    function closeModal() { $("modal").classList.remove("show"); }
+
+    // Save edited file
+    async function saveFile() {
+      const content = $("editor").value;
+      try {
+        const res = await fetch("/api/files/write", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ path: editingPath, content }),
+        });
+        const d = await res.json();
+        toast(d.message || d.error);
+      } catch (e) { toast("Error: " + e.message); }
+    }
+
+    function closeModal() {
+      $("modal").classList.remove("show");
+      $("modal-save").style.display = "none";
+      editingPath = "";
+    }
     $("modal").addEventListener("click", (e) => { if (e.target === $("modal")) closeModal(); });
 
+    // Keyboard shortcut: Ctrl+S to save in editor
+    document.addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "s" && editingPath) {
+        e.preventDefault();
+        saveFile();
+      }
+    });
+
+    // Create new file
+    async function createNewFile() {
+      const name = prompt("New file name:");
+      if (!name) return;
+      const p = currentPath + "/" + name;
+      const res = await fetch("/api/files/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: p }),
+      });
+      const d = await res.json();
+      toast(d.message || d.error);
+      loadFiles();
+    }
+
+    // Create new folder
+    async function createNewFolder() {
+      const name = prompt("New folder name:");
+      if (!name) return;
+      const p = currentPath + "/" + name;
+      const res = await fetch("/api/files/mkdir", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: p }),
+      });
+      const d = await res.json();
+      toast(d.message || d.error);
+      loadFiles();
+    }
+
+    // Rename
+    async function renameEntry(oldPath, oldName) {
+      const newName = prompt("Rename to:", oldName);
+      if (!newName || newName === oldName) return;
+      const parentDir = oldPath.substring(0, oldPath.length - oldName.length);
+      const newPath = parentDir + newName;
+      const res = await fetch("/api/files/rename", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ oldPath, newPath }),
+      });
+      const d = await res.json();
+      toast(d.message || d.error);
+      loadFiles();
+    }
+
+    // Delete
     async function deleteFile(p, name) {
       if (!confirm(`Delete ${name}?`)) return;
       const res = await fetch(`/api/files?path=${encodeURIComponent(p)}`, { method: "DELETE" });
       toast((await res.json()).message); loadFiles();
     }
 
+    // Upload files to current dir
     async function uploadFiles(files) {
       const form = new FormData();
       for (const f of files) form.append("file", f);
@@ -361,11 +454,10 @@
       toast((await res.json()).message || "Uploaded");
       loadFiles();
     }
-
     $("file-input").addEventListener("change", (e) => { if (e.target.files.length) uploadFiles(e.target.files); e.target.value = ""; });
-    setupDropZone($("file-drop"), (files) => uploadFiles(files));
+    setupDropZone($("file-drop"), uploadFiles);
 
-    // ---- Drag & Drop helper ----
+    // ---- Drag & Drop ----
     function setupDropZone(el, onDrop) {
       el.addEventListener("dragover", (e) => { e.preventDefault(); el.classList.add("dragover"); });
       el.addEventListener("dragleave", () => el.classList.remove("dragover"));

@@ -11,9 +11,20 @@ const MODS_DIR = process.env.MODS_DIR || path.resolve(__dirname, "../mods");
 const DATA_DIR = process.env.DATA_DIR || "/app/data";
 const MC_HOST = process.env.MC_HOST || "mc";
 const MC_PORT = parseInt(process.env.MC_PORT || "25565");
-const MC_CONTAINER = process.env.MC_CONTAINER_NAME || "docker-minecraft-server-mc-1";
 
 const docker = new Docker({ socketPath: "/var/run/docker.sock" });
+
+// Auto-discover the MC container by image name
+async function findMcContainer() {
+  try {
+    const containers = await docker.listContainers({ all: true });
+    const mc = containers.find((c) => c.Image.includes("itzg/minecraft-server"));
+    if (mc) return docker.getContainer(mc.Id);
+  } catch (err) {
+    console.error("Docker discovery error:", err.message);
+  }
+  return null;
+}
 
 // Ensure mods directory exists
 if (!fs.existsSync(MODS_DIR)) {
@@ -44,6 +55,7 @@ const fileStorage = multer.diskStorage({
     if (!resolved.startsWith(path.resolve(DATA_DIR))) {
       return cb(new Error("Invalid path"));
     }
+    if (!fs.existsSync(resolved)) fs.mkdirSync(resolved, { recursive: true });
     cb(null, resolved);
   },
   filename: (req, file, cb) => cb(null, file.originalname),
@@ -72,7 +84,8 @@ app.get("/api/status", async (req, res) => {
 // ---- Restart MC Server ----
 app.post("/api/restart", async (req, res) => {
   try {
-    const container = docker.getContainer(MC_CONTAINER);
+    const container = await findMcContainer();
+    if (!container) return res.status(404).json({ error: "Minecraft container not found" });
     await container.restart();
     res.json({ message: "Server restarting..." });
   } catch (err) {
@@ -123,6 +136,7 @@ function safePath(base, rel) {
   return full;
 }
 
+// List directory
 app.get("/api/files", (req, res) => {
   const dir = safePath(DATA_DIR, req.query.path);
   if (!dir) return res.status(400).json({ error: "Invalid path" });
@@ -145,6 +159,7 @@ app.get("/api/files", (req, res) => {
   }
 });
 
+// Read file content
 app.get("/api/files/read", (req, res) => {
   const filePath = safePath(DATA_DIR, req.query.path);
   if (!filePath) return res.status(400).json({ error: "Invalid path" });
@@ -152,7 +167,7 @@ app.get("/api/files/read", (req, res) => {
     return res.status(400).json({ error: "Not a file" });
   }
   const stats = fs.statSync(filePath);
-  if (stats.size > 1024 * 512) return res.status(400).json({ error: "File too large to preview (>512KB)" });
+  if (stats.size > 1024 * 512) return res.status(400).json({ error: "File too large to edit (>512KB)" });
   try {
     const content = fs.readFileSync(filePath, "utf-8");
     res.json({ content, name: path.basename(filePath) });
@@ -161,6 +176,64 @@ app.get("/api/files/read", (req, res) => {
   }
 });
 
+// Save/write file content
+app.put("/api/files/write", (req, res) => {
+  const filePath = safePath(DATA_DIR, req.body.path);
+  if (!filePath) return res.status(400).json({ error: "Invalid path" });
+  try {
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(filePath, req.body.content || "", "utf-8");
+    res.json({ message: `Saved ${path.basename(filePath)}` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Create new file
+app.post("/api/files/create", (req, res) => {
+  const filePath = safePath(DATA_DIR, req.body.path);
+  if (!filePath) return res.status(400).json({ error: "Invalid path" });
+  if (fs.existsSync(filePath)) return res.status(409).json({ error: "Already exists" });
+  try {
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(filePath, "", "utf-8");
+    res.json({ message: `Created ${path.basename(filePath)}` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Create new folder
+app.post("/api/files/mkdir", (req, res) => {
+  const dirPath = safePath(DATA_DIR, req.body.path);
+  if (!dirPath) return res.status(400).json({ error: "Invalid path" });
+  if (fs.existsSync(dirPath)) return res.status(409).json({ error: "Already exists" });
+  try {
+    fs.mkdirSync(dirPath, { recursive: true });
+    res.json({ message: `Created folder ${path.basename(dirPath)}` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Rename file or folder
+app.post("/api/files/rename", (req, res) => {
+  const oldPath = safePath(DATA_DIR, req.body.oldPath);
+  const newPath = safePath(DATA_DIR, req.body.newPath);
+  if (!oldPath || !newPath) return res.status(400).json({ error: "Invalid path" });
+  if (!fs.existsSync(oldPath)) return res.status(404).json({ error: "Not found" });
+  if (fs.existsSync(newPath)) return res.status(409).json({ error: "Target already exists" });
+  try {
+    fs.renameSync(oldPath, newPath);
+    res.json({ message: `Renamed to ${path.basename(newPath)}` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete file or folder
 app.delete("/api/files", (req, res) => {
   const filePath = safePath(DATA_DIR, req.query.path);
   if (!filePath || filePath === path.resolve(DATA_DIR)) return res.status(400).json({ error: "Invalid path" });
@@ -174,6 +247,7 @@ app.delete("/api/files", (req, res) => {
   res.json({ message: `Deleted ${path.basename(filePath)}` });
 });
 
+// Upload files
 app.post("/api/files/upload", fileUpload.array("file", 20), (req, res) => {
   if (!req.files || req.files.length === 0) return res.status(400).json({ error: "No files uploaded" });
   res.json({ message: `Uploaded ${req.files.length} file(s)` });

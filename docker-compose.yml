@@ -23,11 +23,10 @@ services:
     volumes:
       - ./mods:/app/mods
       - /var/run/docker.sock:/var/run/docker.sock
-      - data:/app/data:ro
+      - data:/app/data
     environment:
       MODS_DIR: "/app/mods"
       DATA_DIR: "/app/data"
-      MC_CONTAINER_NAME: "docker-minecraft-server-mc-1"
     restart: unless-stopped
 
 volumes:
